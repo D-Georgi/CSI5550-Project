@@ -14,9 +14,39 @@ from src.methods.baselines import (
     apply_simple_retinex,
     lime_enhance_simplified,
 )
-from src.methods.enhancement import enhance_with_illumination_attention
-from metrics import compute_psnr, compute_ssim
+from src.methods.enhancement import IllumAttentionParams, enhance_with_illumination_attention
+from src.eval.metrics import compute_psnr, compute_ssim
 from src.config import RESULTS_DIR
+
+def evaluate_params_on_lol(
+    params: IllumAttentionParams,
+    max_images: int | None = 50,
+) -> dict:
+    """
+    Run proposed method with given params on a subset of LOL and return avg PSNR/SSIM.
+    """
+    pairs = load_lol_pairs()
+    if max_images is not None:
+        pairs = pairs[:max_images]
+
+    psnr_sum, ssim_sum = 0.0, 0.0
+    count = 0
+
+    for low_path, gt_path in tqdm(pairs, desc="Ablation subset"):
+        low = load_image(low_path)
+        gt = load_image(gt_path)
+
+        out = enhance_with_illumination_attention(low, params=params)
+        enhanced = out["enhanced_final"]
+
+        psnr_sum += compute_psnr(gt, enhanced)
+        ssim_sum += compute_ssim(gt, enhanced)
+        count += 1
+
+    return {
+        "psnr": psnr_sum / count,
+        "ssim": ssim_sum / count,
+    }
 
 def run_lol_experiment(
     subset_name: str = "lol_subset",

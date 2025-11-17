@@ -19,7 +19,11 @@ def compute_darkness_attention(T_norm: np.ndarray, alpha: float = ILLUM_ALPHA) -
     A_d_prime = A_d ** alpha
     return A_d_prime.astype(np.float32)
 
-def map_attention_to_gamma(attention: np.ndarray) -> np.ndarray:
+def map_attention_to_gamma(
+    attention: np.ndarray,
+    gamma_min: float = 0.7,
+    gamma_max: float = 1.0,
+) -> np.ndarray:
     """
     Map attention to gamma in a gentler, piecewise way:
       - Very dark (A > 0.7): gamma in [0.75, 0.85]
@@ -51,3 +55,18 @@ def attention_mask_for_clahe(attention: np.ndarray, thresh: float = 0.5) -> np.n
         Boolean mask (H,W).
     """
     return (attention > thresh)
+
+def compute_scaled_attention(T_norm: np.ndarray, alpha: float = 1.0) -> np.ndarray:
+    """
+    SIAM-style scaled illumination attention.
+    Assume T_norm is illumination in [0,1] (higher = brighter).
+    We first build naive Att = 1 - T_norm, then scale:
+      S_Att = -Att * (Att - 2)
+    Optionally apply alpha exponent to tweak shape.
+    """
+    I = np.clip(T_norm, 0.0, 1.0)
+    Att = 1.0 - I
+    S_Att = -Att * (Att - 2.0)  # Eq. (3) in paper
+    if alpha != 1.0:
+        S_Att = np.clip(S_Att, 0.0, 1.0) ** alpha
+    return np.clip(S_Att, 0.0, 1.0).astype(np.float32)
