@@ -2,12 +2,13 @@
 
 import numpy as np
 import cv2
+from src.config import BILATERAL_SIGMA_COLOR, BILATERAL_SIGMA_SPACE
 
 def bilateral_denoise(
     img: np.ndarray,
     d: int = 9,
-    sigma_color: float = 75,
-    sigma_space: float = 75
+    sigma_color: float = BILATERAL_SIGMA_COLOR,
+    sigma_space: float = BILATERAL_SIGMA_SPACE
 ) -> np.ndarray:
     """
     Apply bilateral filter to RGB image (channel-wise).

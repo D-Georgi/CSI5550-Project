@@ -60,9 +60,9 @@ def compute_scaled_attention(T_norm: np.ndarray, alpha: float = 1.0) -> np.ndarr
     """
     SIAM-style scaled illumination attention.
     Assume T_norm is illumination in [0,1] (higher = brighter).
-    We first build naive Att = 1 - T_norm, then scale:
+    first build naive Att = 1 - T_norm, then scale:
       S_Att = -Att * (Att - 2)
-    Optionally apply alpha exponent to tweak shape.
+    apply alpha exponent to tweak shape.
     """
     I = np.clip(T_norm, 0.0, 1.0)
     Att = 1.0 - I

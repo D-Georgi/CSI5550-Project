@@ -11,21 +11,21 @@ from dataclasses import dataclass
 @dataclass
 class IllumAttentionParams:
     # attention
-    alpha: float = 1.2
+    alpha: float = 1
     use_scaled_attention: bool = True   # vs naive darkness attention
 
     # gamma mapping
-    gamma_min: float = 0.7
+    gamma_min: float = 0.9
     gamma_max: float = 1.0
 
     # CLAHE
     use_clahe: bool = True
-    clahe_thresh: float = 0.5
-    clahe_clip_limit: float = 1.5
+    clahe_thresh: float = 0.99
+    clahe_clip_limit: float = 1.0
 
     # denoising
     use_denoise: bool = True
-    denoise_strength: float = 1.0  # multiplier on attention during blend
+    denoise_strength: float = 1.5  # multiplier on attention during blend
 
     # illumination refinement
     tv_weight: float = 0.1
@@ -85,12 +85,15 @@ def enhance_with_illumination_attention(
     else:
         img_final = img_local
 
+    blend_factor = 0.7  # 0 = original, 1 = enhanced; tweak 0.5–0.8
+    img_residual = (1 - blend_factor * A[..., None]) * I + (blend_factor * A[..., None]) * img_final
+
     return {
         "illumination": T,
         "attention": A,
         "gamma_map": gamma_map,
         "enhanced_gamma": img_gamma,
-        "enhanced_final": np.clip(img_final, 0.0, 1.0),
+        "enhanced_final": np.clip(img_residual, 0.0, 1.0),
     }
 
 def _apply_per_pixel_gamma(img: np.ndarray, gamma_map: np.ndarray) -> np.ndarray:
