@@ -42,6 +42,9 @@ def enhance_with_illumination_attention(
 
     # 2) Attention from illumination
     A = compute_darkness_attention(T_norm)
+
+    ultra_dark_mask = (T_norm < 0.05)
+
     gamma_map = map_attention_to_gamma(A)
 
     # 3) Per-pixel gamma correction
@@ -58,7 +61,10 @@ def enhance_with_illumination_attention(
     # 5) Optional attention-guided denoising
     if apply_denoising_step:
         den = bilateral_denoise(img_local)
-        img_final = attention_weighted_blend(img_local, den, A)
+        # Boost denoising weight in ultra-dark areas
+        A_boost = A.copy()
+        A_boost[ultra_dark_mask] = 1.0
+        img_final = attention_weighted_blend(img_local, den, A_boost)
     else:
         img_final = img_local
 

@@ -21,7 +21,7 @@ def apply_histogram_equalization(img: np.ndarray) -> np.ndarray:
     rgb_eq = cv2.cvtColor(lab_eq, cv2.COLOR_LAB2RGB)
     return rgb_eq.astype(np.float32) / 255.0
 
-def apply_clahe(img: np.ndarray, clip_limit: float = 2.0, tile_grid_size=(8, 8)) -> np.ndarray:
+def apply_clahe(img: np.ndarray, clip_limit: float = 1.5, tile_grid_size=(16, 16)) -> np.ndarray:
     """
     CLAHE on luminance channel.
 

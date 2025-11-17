@@ -10,9 +10,9 @@ RAW_GT_DIR = DATA_DIR / "raw" / "lol_gt"
 RESULTS_DIR = DATA_DIR / "results"
 
 # Method hyperparameters
-ILLUM_ALPHA = 1.5          # exponent for attention nonlinearity
-GAMMA_MIN = 0.4
-GAMMA_MAX = 1.1
+ILLUM_ALPHA = 1.2          # exponent for attention nonlinearity
+GAMMA_MIN = 0.7
+GAMMA_MAX = 1.0
 
 # Denoising parameters
 BILATERAL_SIGMA_COLOR = 50
