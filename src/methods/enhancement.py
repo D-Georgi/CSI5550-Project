@@ -36,56 +36,48 @@ def enhance_with_illumination_attention(
         params: IllumAttentionParams | None = None,
 ) -> dict:
     if params is None:
-        params = IllumAttentionParams()
-    """
-    Full proposed pipeline: illumination-based attention for classical enhancement.
+        # Update defaults for NIGHT MODE
+        params = IllumAttentionParams(
+            gamma_min=0.5,      # Aggressive brightening
+            gamma_max=1.0,
+            clahe_thresh=0.5,   # Apply CLAHE more broadly
+            denoise_strength=1.0
+        )
 
-    Returns:
-        dict with intermediate outputs:
-            {
-              "illumination": T,
-              "attention": A,
-              "gamma_map": gamma_map,
-              "enhanced_gamma": img_gamma,
-              "enhanced_final": img_final
-            }
-    """
     I = np.clip(img, 0.0, 1.0)
 
-    # 1) illumination
+    # 1) Illumination
     T0 = estimate_illumination_max_rgb(I)
     T = refine_illumination_tv(T0, weight=params.tv_weight, n_iter=params.tv_iter)
     T_norm = normalize_illumination(T)
 
-    # 2) attention
+    # 2) Attention (SIAM)
     if params.use_scaled_attention:
         A = compute_scaled_attention(T_norm, alpha=params.alpha)
     else:
-        # naive darkness attention
         A = compute_darkness_attention(T_norm, alpha=params.alpha)
 
+    # 3) Gamma Mapping
     gamma_map = map_attention_to_gamma(A, gamma_min=params.gamma_min, gamma_max=params.gamma_max)
-
-    # 3) gamma
     img_gamma = _apply_per_pixel_gamma(I, gamma_map)
 
-    # 4) CLAHE
+    # 4) CLAHE & Denoising Swap
+    if params.use_denoise:
+        # Denoise base enhancement first
+        img_clean = bilateral_denoise(img_gamma)
+    else:
+        img_clean = img_gamma
+
+    # 5) CLAHE
     if params.use_clahe:
         mask = attention_mask_for_clahe(A, thresh=params.clahe_thresh)
-        img_local = _apply_clahe_masked(img_gamma, mask, clip_limit=params.clahe_clip_limit)
+        img_final = _apply_clahe_masked(img_clean, mask, clip_limit=params.clahe_clip_limit)
     else:
-        img_local = img_gamma
+        img_final = img_clean
 
-    # 5) denoising
-    if params.use_denoise:
-        den = bilateral_denoise(img_local)
-        # scale attention
-        A_scaled = np.clip(A * params.denoise_strength, 0.0, 1.0)
-        img_final = attention_weighted_blend(img_local, den, A_scaled)
-    else:
-        img_final = img_local
-
-    blend_factor = 0.7  # 0 = original, 1 = enhanced; tweak 0.5–0.8
+    # 6) Final Blend
+    # Use the attention map to preserve bright light sources from the original I
+    blend_factor = 0.8 # Increase blend for night to see more result
     img_residual = (1 - blend_factor * A[..., None]) * I + (blend_factor * A[..., None]) * img_final
 
     return {
