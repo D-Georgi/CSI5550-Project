@@ -85,10 +85,8 @@ def lime_enhance_simplified(img: np.ndarray) -> np.ndarray:
     """
     Simplified LIME-style enhancement:
         - Illumination = max RGB
-        - Refine with smoothing (could call your refine_illumination_tv)
+        - Refine with smoothing
         - Divide image by illumination^gamma
-
-    You can later hook this into illumination.py functions.
     """
     from .illumination import estimate_illumination_max_rgb, refine_illumination_tv
 

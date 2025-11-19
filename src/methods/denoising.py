@@ -14,6 +14,8 @@ def bilateral_denoise(
     Apply bilateral filter to RGB image (channel-wise).
 
     Args:
+        sigma_space:
+        sigma_color:
         img: float32 RGB [0,1].
 
     Returns:
@@ -23,7 +25,7 @@ def bilateral_denoise(
     out = np.zeros_like(u8)
     for c in range(3):
         out[..., c] = cv2.bilateralFilter(u8[..., c], d, sigma_color, sigma_space)
-    return (out.astype(np.float32) / 255.0)
+    return out.astype(np.float32) / 255.0
 
 def attention_weighted_blend(
     original: np.ndarray,

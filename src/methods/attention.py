@@ -20,26 +20,45 @@ def compute_darkness_attention(T_norm: np.ndarray, alpha: float = ILLUM_ALPHA) -
     return A_d_prime.astype(np.float32)
 
 def map_attention_to_gamma(
-    attention: np.ndarray,
-    gamma_min: float = 0.7,
-    gamma_max: float = 1.0,
+        attention: np.ndarray,
+        gamma_min: float = 0.7,
+        gamma_max: float = 1.0,
 ) -> np.ndarray:
     """
-    Map attention to gamma in a gentler, piecewise way:
-      - Very dark (A > 0.7): gamma in [0.75, 0.85]
-      - Medium (0.3 < A <= 0.7): gamma in [0.85, 1.0]
-      - Bright (A <= 0.3): gamma ~ 1.0 (no change)
+    Map attention to gamma in a gentler, piecewise way, respecting the input ranges.
+
+    Logic:
+      - Very dark (A > 0.7): gamma scales from gamma_mid -> gamma_min
+      - Medium (0.3 < A <= 0.7): gamma scales from gamma_max -> gamma_mid
+      - Bright (A <= 0.3): gamma = gamma_max
+
+    This preserves the 'knee' shape but allows gamma_min to actually drive the brightness.
     """
     A = np.clip(attention, 0.0, 1.0)
-    gamma = np.ones_like(A, dtype=np.float32)
+    gamma = np.full_like(A, gamma_max, dtype=np.float32)
 
-    # medium dark
+    # Calculate an intermediate gamma value to maintain the piecewise curve
+    # Originally: min=0.75, max=1.0 -> mid=0.85. (0.85 is ~40% up from min)
+    gamma_range = gamma_max - gamma_min
+    gamma_mid = gamma_min + (0.4 * gamma_range)
+
+    # 1. Medium Dark (0.3 < A <= 0.7)
+    # Interpolate between gamma_max (at A=0.3) and gamma_mid (at A=0.7)
     mask_med = (A > 0.3) & (A <= 0.7)
-    gamma[mask_med] = 0.85 + (1.0 - 0.85) * (0.7 - A[mask_med]) / (0.7 - 0.3 + 1e-6)
+    if np.any(mask_med):
+        # Normalized position in this band (0.0 at A=0.3, 1.0 at A=0.7)
+        t = (A[mask_med] - 0.3) / (0.7 - 0.3 + 1e-6)
+        # Linearly interpolate
+        gamma[mask_med] = gamma_max - t * (gamma_max - gamma_mid)
 
-    # very dark
+    # 2. Very Dark (A > 0.7)
+    # Interpolate between gamma_mid (at A=0.7) and gamma_min (at A=1.0)
     mask_dark = A > 0.7
-    gamma[mask_dark] = 0.75 + (0.85 - 0.75) * (1.0 - A[mask_dark]) / (1.0 - 0.7 + 1e-6)
+    if np.any(mask_dark):
+        # Normalized position in this band (0.0 at A=0.7, 1.0 at A=1.0)
+        t = (A[mask_dark] - 0.7) / (1.0 - 0.7 + 1e-6)
+        # Linearly interpolate
+        gamma[mask_dark] = gamma_mid - t * (gamma_mid - gamma_min)
 
     return gamma
 

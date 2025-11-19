@@ -1,62 +1,76 @@
 # scripts/run_ablation_study.py
 
-from itertools import product
+import sys
+import itertools
 from pathlib import Path
-import csv
+from tqdm import tqdm
 
-from src.methods.enhancement import IllumAttentionParams
-from src.eval.experiment_runner import evaluate_params_on_lol
+# Add project root to path
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-def main():
-    # --- define search space (coarse) ---
-    alphas          = [1.0, 1.2, 1.5]
-    gamma_mins      = [0.7, 0.8, 0.9]
-    clahe_thresholds = [0.4, 0.6]
-    clahe_clip_limits = [1.5, 2.0]
-    denoise_strengths = [0.5, 1.0]
-    use_scaled_opts = [False, True]   # naive vs SIAM
+from src.data.image_io import load_image, save_image
+from src.methods.enhancement import enhance_with_illumination_attention, IllumAttentionParams
 
-    # limit combos to something manageable
-    combos = list(product(
-        use_scaled_opts,
-        alphas,
-        gamma_mins,
-        clahe_thresholds,
-        clahe_clip_limits,
-        denoise_strengths,
-    ))
 
-    out_path = Path("experiments/logs/ablation_results.csv")
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+def run_grid_search():
+    INPUT_DIR = Path("data/test_night_bdd")
+    BASE_OUTPUT_DIR = Path("data/results/ablation_study")
 
-    with out_path.open("w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            "use_scaled", "alpha", "gamma_min",
-            "clahe_thresh", "clahe_clip_limit",
-            "denoise_strength", "psnr", "ssim",
-        ])
+    grid = {
+        "gamma_min": [0.4, 0.5, 0.6, 0.7, 0.8, 0.9],  # 0.4=Very Bright/Noisy, 0.7=Darker/Cleaner, 0.8/0.9=Halo Effect
+        "denoise_strength": [0.85, 0.9, 0.95, 1.0],  # 1.0=No original grain, 0.85=Texture preserved
+        "clahe_thresh": [0.3, 0.5]  # 0.3=More local contrast, 0.5=Less noise in sky
+    }
 
-        for (use_scaled, alpha, gmin, ct, cl, ds) in combos:
-            params = IllumAttentionParams(
-                use_scaled_attention=use_scaled,
-                alpha=alpha,
-                gamma_min=gmin,
-                gamma_max=1.0,
-                clahe_thresh=ct,
-                clahe_clip_limit=cl,
-                denoise_strength=ds,
-            )
-            metrics = evaluate_params_on_lol(params, max_images=40)  # subset
-            print(
-                f"scaled={use_scaled}, alpha={alpha}, gmin={gmin}, "
-                f"ct={ct}, cl={cl}, ds={ds} -> PSNR={metrics['psnr']:.2f}, "
-                f"SSIM={metrics['ssim']:.3f}"
-            )
-            writer.writerow([
-                use_scaled, alpha, gmin, ct, cl, ds,
-                metrics["psnr"], metrics["ssim"],
-            ])
+    # Get all images
+    images = sorted(list(INPUT_DIR.glob("*.jpg")) + list(INPUT_DIR.glob("*.png")))
+    print(f"Found {len(images)} input images.")
+
+    # Generate all combinations
+    keys, values = zip(*grid.items())
+    combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
+
+    print(f"Running {len(combinations)} parameter combinations per image...")
+    print(f"Total processing steps: {len(combinations) * len(images)}")
+
+    for params_dict in tqdm(combinations, desc="Experiments"):
+        exp_name = (f"g{params_dict['gamma_min']}_"
+                    f"d{params_dict['denoise_strength']}_"
+                    f"c{params_dict['clahe_thresh']}")
+
+        exp_dir = BASE_OUTPUT_DIR / exp_name
+        exp_dir.mkdir(parents=True, exist_ok=True)
+
+        # Setup Params object
+        params = IllumAttentionParams(
+            gamma_min=params_dict['gamma_min'],
+            gamma_max=1.0,
+
+            clahe_thresh=params_dict['clahe_thresh'],
+            clahe_clip_limit=2.0,
+
+            denoise_strength=params_dict['denoise_strength'],
+
+            use_scaled_attention=True,
+            tv_iter=30
+        )
+
+        # Process all images for this setting
+        for img_file in images:
+            # Skip if already exists (resuming capability)
+            out_path = exp_dir / img_file.name
+            if out_path.exists():
+                continue
+
+            try:
+                img = load_image(img_file)
+                res = enhance_with_illumination_attention(img, params=params)
+                save_image(out_path, res["enhanced_final"])
+            except Exception as e:
+                print(f"Failed on {img_file.name}: {e}")
+
+    print(f"\nAblation generation complete. Check {BASE_OUTPUT_DIR}")
+
 
 if __name__ == "__main__":
-    main()
+    run_grid_search()

@@ -15,7 +15,7 @@ class IllumAttentionParams:
     use_scaled_attention: bool = True   # vs naive darkness attention
 
     # gamma mapping
-    gamma_min: float = 0.9
+    gamma_min: float = 0.7
     gamma_max: float = 1.0
 
     # CLAHE
@@ -25,7 +25,7 @@ class IllumAttentionParams:
 
     # denoising
     use_denoise: bool = True
-    denoise_strength: float = 1.5  # multiplier on attention during blend
+    denoise_strength: float = 0.9  # multiplier on attention during blend
 
     # illumination refinement
     tv_weight: float = 0.1
@@ -36,13 +36,9 @@ def enhance_with_illumination_attention(
         params: IllumAttentionParams | None = None,
 ) -> dict:
     if params is None:
+        #print("Using default illumination params")
         # Update defaults for NIGHT MODE
-        params = IllumAttentionParams(
-            gamma_min=0.5,      # Aggressive brightening
-            gamma_max=1.0,
-            clahe_thresh=0.5,   # Apply CLAHE more broadly
-            denoise_strength=1.0
-        )
+        params = IllumAttentionParams()
 
     I = np.clip(img, 0.0, 1.0)
 
@@ -76,8 +72,7 @@ def enhance_with_illumination_attention(
         img_final = img_clean
 
     # 6) Final Blend
-    # Use the attention map to preserve bright light sources from the original I
-    blend_factor = 0.8 # Increase blend for night to see more result
+    blend_factor = params.denoise_strength # Increase blend for night to see more result
     img_residual = (1 - blend_factor * A[..., None]) * I + (blend_factor * A[..., None]) * img_final
 
     return {
