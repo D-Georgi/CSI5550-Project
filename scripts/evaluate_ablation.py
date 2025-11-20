@@ -7,7 +7,7 @@ from ultralytics import YOLO
 from tqdm import tqdm
 
 # CONFIG
-MODEL_PATH = "../yolo/weights/best.pt"
+MODEL_PATH = "yolo/weights/best.pt"
 ABLATION_DIR = Path("data/results/ablation_study")
 
 
